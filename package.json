@@ -1,0 +1,22 @@
+{
+  "name": "perahin-server",
+  "version": "1.0.0",
+  "description": "whatwg-url is a full implementation of the WHATWG [URL Standard](https://url.spec.whatwg.org/). It can be used standalone, but it also exposes a lot of the internal algorithms that are useful for integrating a URL parser into a project like [jsdom](https://github.com/jsdom/jsdom).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "mongodb": "^6.19.0",
+    "nodemon": "^3.1.10",
+    "socket.io": "^4.8.1",
+    "sslcommerz-lts": "^1.2.0",
+    "webidl2js": "^19.0.0"
+  }
+}

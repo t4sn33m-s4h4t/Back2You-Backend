@@ -37,21 +37,15 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect()
-    // Send a ping to confirm a successful connection
-    // await client.db('admin').command({ ping: 1 })
-    // console.log(
-    //   'Pinged your deployment. You successfully connected to MongoDB!'
-    // )
+  
+    await client.connect();  
 
-    const userCollection = client.db('teamProject').collection('users');
-    const postCollection = client.db('teamProject').collection('posts');
-    const claimCollection = client.db('teamProject').collection('claims');
-    const paymentCollection = client.db('teamProject').collection('payments');
-    const feedbackCollection = client.db('teamProject').collection('feedbacks');
-    const messagesCollection = client.db('teamProject').collection('messages');
-
+   const db = client.db('teamProject');
+    const userCollection = db.collection('users');
+    const postCollection = db.collection('posts');
+    const claimCollection = db.collection('claims'); 
+    const feedbackCollection = db.collection('feedbacks');
+    const messagesCollection = db.collection('messages');
     //Users Related API
     app.post('/users', async (req, res) => {
       const user = req.body

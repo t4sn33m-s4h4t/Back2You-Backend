@@ -4,7 +4,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
-const { default: axios } = require('axios')
 require('dotenv').config()
 
 const port = process.env.PORT || 5000
@@ -14,15 +13,13 @@ app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded())
 
-
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow all origins or specify your frontend URL
+    origin: '*',
     methods: ['GET', 'POST']
   }
 });
-
 
 // MongoDB Connection
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@perahin.x7jfbh3.mongodb.net/?retryWrites=true&w=majority&appName=perahin`
@@ -37,16 +34,15 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-  
-    await client.connect();  
+    await client.connect();
+    console.log("Connected to MongoDB");
+    const userCollection = client.db('teamProject').collection('users');
+    const postCollection = client.db('teamProject').collection('posts');
+    const claimCollection = client.db('teamProject').collection('claims');
+    const feedbackCollection = client.db('teamProject').collection('feedbacks');
+    const messagesCollection = client.db('teamProject').collection('messages');
 
-   const db = client.db('teamProject');
-    const userCollection = db.collection('users');
-    const postCollection = db.collection('posts');
-    const claimCollection = db.collection('claims'); 
-    const feedbackCollection = db.collection('feedbacks');
-    const messagesCollection = db.collection('messages');
-    //Users Related API
+    // Users Related API
     app.post('/users', async (req, res) => {
       const user = req.body
       const query = { email: user.email }
@@ -72,6 +68,7 @@ async function run() {
     // User related API End.
 
 
+    // Posts section
     app.post('/posts', async (req, res) => {
       const post = req.body
       const timestamp = new Date()
@@ -139,7 +136,7 @@ async function run() {
     })
 
 
-    // Claims section starts 
+    // Claims section
     app.post('/claims', async (req, res) => {
       const claim = req.body;
       claim.status = 'pending';
@@ -168,21 +165,8 @@ async function run() {
       }
 
       const query = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          status: status,
-        }
-      };
-
+      const updateDoc = { $set: { status: status } };
       const result = await claimCollection.updateOne(query, updateDoc);
-
-      // if (status === 'verified') {
-      //   const claim = await claimCollection.findOne(query);
-      //   await postCollection.updateOne(
-      //     { _id: new ObjectId(claim.postId) },
-      //     { $set: { type: 'item-recovered' } }
-      //   );
-      // }
 
       res.send(result);
     });
@@ -199,24 +183,16 @@ async function run() {
               let: { postId: { $toObjectId: "$postId" } },
               pipeline: [
                 {
-                  $match: {
-                    $expr: { $eq: ["$_id", "$$postId"] }
-                  }
+                  $match: { $expr: { $eq: ["$_id", "$$postId"] } }
                 },
                 {
-                  $project: {
-                    name: 1,
-                    category: 1,
-                    location: 1
-                  }
+                  $project: { name: 1, category: 1, location: 1 }
                 }
               ],
               as: "postDetails"
             }
           },
-          {
-            $unwind: { path: "$postDetails", preserveNullAndEmptyArrays: true }
-          },
+          { $unwind: { path: "$postDetails", preserveNullAndEmptyArrays: true } },
           {
             $project: {
               _id: 1,
@@ -251,12 +227,6 @@ async function run() {
       try {
         const id = req.params.id;
         const query = { _id: new ObjectId(id) };
-
-        // const claim = await claimCollection.findOne(query);
-        // if (claim.claimantEmail !== req.user.email) {
-        //     return res.status(403).send({ message: 'Unauthorized' });
-        // }
-
         const result = await claimCollection.deleteOne(query);
 
         if (result.deletedCount === 1) {
@@ -269,11 +239,9 @@ async function run() {
         res.status(500).send({ message: 'Error deleting claim' });
       }
     });
-    // Claims section ends
 
 
-
-    // Feedback section starts
+    // Feedback section
     app.post('/feedbacks', async (req, res) => {
       const feedback = req.body;
       const result = await feedbackCollection.insertOne(feedback);
@@ -286,10 +254,7 @@ async function run() {
     });
 
 
-
-
-
-    // Chat section starts
+    // Chat section
     app.get('/get-chats/:userId', async (req, res) => {
       const currentUserId = req.params.userId;
       try {
@@ -317,7 +282,6 @@ async function run() {
           }
         }
 
-
         const uniqueUserIds = Object.keys(chatUsers).map(id => new ObjectId(id));
 
         const users = await userCollection.find({
@@ -328,13 +292,12 @@ async function run() {
           let chatUser = chatUsers[user._id.toString()]
           let text = chatUser.lastMessage
           let lastReadTimestamp = chatUser.lastReadTimestamp
-          let timestamp = chatUser.timestamp
           return ({
             userName: user.name,
             email: user.email,
             photoURL: user.photoURL,
             lastMessage: text.length > 15 ? text.slice(0, 15) + "..." : text,
-            timestamp: chatUsers[user._id.toString()].timestamp,
+            timestamp: chatUser.timestamp,
             isRead: ((currentUserId === chatUser.receiver) && !lastReadTimestamp) ? true : false,
           })
         });
@@ -344,7 +307,6 @@ async function run() {
         return res.status(500).json({ message: 'Server error.' });
       }
     });
-
 
     app.get('/messages', async (req, res) => {
       try {
@@ -371,11 +333,9 @@ async function run() {
       }
     });
 
-
     app.delete('/messages/:id', async (req, res) => {
       try {
         const messageId = req.params.id;
-
         const result = await messagesCollection.deleteOne({ _id: new ObjectId(messageId) });
 
         if (result.deletedCount === 1) {
@@ -388,13 +348,13 @@ async function run() {
       }
     });
 
-
     io.on('connect', (socket) => {
       socket.on('authenticate', (userId) => {
         socket.join(userId.toString());
       });
-
+      
       socket.on('sendMessage', async (data) => {
+          console.log("Incoming message data:", data);
         const message = {
           sender: data.sender,
           text: data.text,
@@ -405,6 +365,7 @@ async function run() {
 
         io.to(data.receiver).emit('receiveMessage', message)
       });
+
       socket.on('messageRead', async (messageId) => {
         try {
           await messagesCollection.updateOne(
@@ -421,9 +382,7 @@ async function run() {
       });
     });
 
-
   } finally {
-    // Ensures that the client will close when you finish/error
     // await client.close();
   }
 }
@@ -434,5 +393,5 @@ app.get('/', (req, res) => {
 })
 
 server.listen(port, () => {
-  console.log(`Server is running on port http://localhost:${port}`);
+  console.log(`Server is running on port ${port}`);
 });

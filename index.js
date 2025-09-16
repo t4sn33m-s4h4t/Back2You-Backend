@@ -5,8 +5,51 @@ const { Server } = require('socket.io');
 const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 require('dotenv').config()
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const port = process.env.PORT || 5000
+const API_KEY = process.env.API_KEY;
+if (!API_KEY) {
+  console.error("API_KEY not found in .env file.");
+  process.exit(1);
+}
+
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+async function getTrustScore(claimDesc, founderDesc) {
+  const prompt = `You are an intelligent evaluator that compares two item descriptions: one from the claimant and one from the founder.
+Instructions:
+1. Compare the descriptions carefully, including color, brand, model, condition, features, and any other relevant details.
+2. Consider the length and completeness of each description:
+   - If a description is short or missing details, give partial marks accordingly.
+   - Longer and more detailed descriptions that match should get higher scores.
+3. Judge how much the two descriptions likely refer to the same item.
+4. Use your reasoning to assign a trust rating from 0 to 100:
+   - 0 = completely different items
+   - 100 = perfect match
+5. Output ONLY a number between 0 and 100. Do NOT include text, explanations, or symbols.
+6. Do not round incorrectly — be precise.
+Claimant Description: "${claimDesc}"
+Founder Description: "${founderDesc}"
+
+Final Answer:`;
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    const score = parseInt(text.match(/\d+/)?.[0] || "0", 10);
+    
+    return Math.min(Math.max(score, 0), 100);
+
+  } catch (error) {
+    console.error("Error calling Gemini API:", error);
+    return 0;
+  }
+}
+
 
 // Middleware
 app.use(cors())
@@ -137,12 +180,33 @@ async function run() {
 
 
     // Claims section
+
     app.post('/claims', async (req, res) => {
-      const claim = req.body;
-      claim.status = 'pending';
-      const result = await claimCollection.insertOne(claim);
-      res.send(result);
+      try {
+        const claim = req.body;
+        claim.status = 'pending';
+        const postId = claim.postId;
+        const founderItem = await postCollection.findOne({ _id: new ObjectId(postId) });
+        if (!founderItem) {
+          return res.status(404).json({ error: "Founder item not found" });
+        }
+        const claimantDesc = claim.details;
+        const founderDesc = founderItem.description || "";
+        const trustScore = await getTrustScore(claimantDesc, founderDesc);
+        claim.trustScore = trustScore;
+        const result = await claimCollection.insertOne(claim);
+        res.json(result);
+      } catch (error) {
+        console.error("Error in /claims route:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
     });
+    // app.post('/claims', async (req, res) => {
+    //   const claim = req.body;
+    //   claim.status = 'pending';
+    //   const result = await claimCollection.insertOne(claim);
+    //   res.send(result);
+    // });
 
     app.get('/claims', async (req, res) => {
       const claims = await claimCollection.find().toArray();
@@ -205,6 +269,7 @@ async function run() {
               receiptUrl: 1,
               imageUrl: 1,
               details: 1,
+              trustScore:1,
               createdAt: 1,
               "postDetails.name": 1,
               "postDetails.category": 1,
@@ -352,9 +417,9 @@ async function run() {
       socket.on('authenticate', (userId) => {
         socket.join(userId.toString());
       });
-      
+
       socket.on('sendMessage', async (data) => {
-          console.log("Incoming message data:", data);
+        console.log("Incoming message data:", data);
         const message = {
           sender: data.sender,
           text: data.text,
@@ -393,5 +458,5 @@ app.get('/', (req, res) => {
 })
 
 server.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on port http://localhost:${port}`);
 });

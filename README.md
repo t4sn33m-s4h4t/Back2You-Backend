@@ -90,4 +90,4 @@ The backend will be available at `http://localhost:5000`.
 | GET    | `/messages`         | Get messages between sender & receiver|
 | DELETE | `/messages/:id`     | Delete a message                      |
 
-🔒 **Protected routes** require proper authentication.
+🔒 **Protected routes require proper authentication.**
